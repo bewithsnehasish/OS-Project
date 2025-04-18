@@ -1,0 +1,167 @@
+/* Custom animation for page fault border pulse */
+@keyframes pulse-border-red {
+    0%, 100% { border-color: theme('colors.red.500'); opacity: 1; }
+    50% { border-color: theme('colors.red.300'); opacity: 0.8; }
+}
+.animate-pulse-border {
+    animation: pulse-border-red 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    border-width: 2px; /* Make border visible for animation */
+}
+
+/* Custom scrollbar styling (Webkit browsers) */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: theme('colors.slate.100');
+    border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: theme('colors.primary.400'); /* Use primary color */
+    border-radius: 4px;
+    border: 2px solid theme('colors.slate.100'); /* Match track bg */
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: theme('colors.primary.500');
+}
+
+/* Simple Tooltip Styles */
+.tooltip {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+    /* border-bottom: 1px dotted #999; */ /* Optional: remove dotted line */
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 180px; /* Slightly narrower */
+    background-color: theme('colors.slate.700');
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 6px 8px; /* Adjusted padding */
+    position: absolute;
+    z-index: 10;
+    bottom: 135%; /* Position above the icon */
+    left: 50%;
+    margin-left: -90px; /* Center the tooltip */
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    font-size: 0.7rem; /* Smaller text */
+    font-weight: normal;
+    white-space: normal;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Arrow for tooltip */
+.tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: theme('colors.slate.700') transparent transparent transparent;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Style for the currently accessed page in the reference string */
+.reference-page.current-ref {
+    background-color: theme('colors.yellow.300') !important;
+    color: theme('colors.yellow.800') !important;
+    transform: scale(1.1);
+    box-shadow: 0 0 0 2px theme('colors.yellow.400');
+    font-weight: bold;
+    z-index: 5; /* Bring to front */
+    position: relative;
+}
+
+/* Style for past accessed pages */
+.reference-page.past-ref {
+    opacity: 0.6;
+    background-color: theme('colors.slate.200') !important;
+    color: theme('colors.slate.600') !important;
+}
+
+/* Tab active state more pronounced */
+.tab-button.active {
+    font-weight: 600; /* Semibold */
+    /* border-color: theme('colors.primary.600'); */ /* Slightly darker border */
+}
+
+/* Ensure algorithm info box text is wrapped */
+.algorithm-info span.info-text {
+    display: inline-block; /* Allows wrapping */
+}
+
+/* Ensure chart container maintains aspect ratio but is responsive */
+#stats-tab > div {
+    position: relative;
+    width: 100%;
+    /* max-width: 400px; /* Control max size */
+    /* height: auto; /* Adjust height based on width */
+}
+
+/* Adjust Memory Frame styling for better readability */
+.memory-frame {
+    min-height: 5rem; /* 80px */
+    transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out, transform 0.2s ease;
+}
+.memory-frame:hover {
+    transform: scale(1.03);
+    z-index: 1; /* Bring frame to front on hover */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.memory-frame .frame-content {
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+     justify-content: center;
+     text-align: center;
+     height: 100%;
+     padding: 4px;
+}
+
+.memory-frame .page-number {
+    font-weight: 700; /* Bold */
+    font-size: 1rem; /* 16px */
+    line-height: 1.2;
+}
+
+.memory-frame .bits {
+    font-family: theme('fontFamily.mono');
+    font-size: 0.65rem; /* 10.4px */
+    line-height: 1;
+    margin-top: 2px;
+    padding: 1px 3px;
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.2); /* Slightly transparent background */
+}
+.memory-frame.frame-used .bits {
+    background-color: theme('colors.blue.100');
+    color: theme('colors.blue.800');
+}
+
+.memory-frame .loading-text {
+     font-size: 0.7rem; /* 11.2px */
+     margin-top: 2px;
+}
+.memory-frame .frame-index {
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    font-size: 0.6rem; /* 9.6px */
+    font-weight: 500;
+    color: theme('colors.slate.400');
+}
+.memory-frame.frame-used .frame-index,
+.memory-frame.frame-loading .frame-index {
+    color: rgba(255, 255, 255, 0.7);
+}
