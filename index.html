@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Virtual Memory Management Simulator</title>
+        <!-- Tailwind CSS CDN -->
+        <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+        <!-- Chart.js CDN -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+        /* Custom animation for page fault */
+        @keyframes pulse-red {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+        }
+        .animate-pulse-red {
+            animation: pulse-red 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        /* Custom scrollbar styling (optional, Tailwind doesn't directly style scrollbars) */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #3b82f6; /* blue-500 */
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #2563eb; /* blue-600 */
+        }
+        /* Tooltip styles (kept minimal as Tailwind doesn't have built-in tooltips) */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+            border-bottom: 1px dotted #777;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #334155; /* slate-700 */
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 10;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.75rem; /* text-xs */
+            font-weight: normal;
+            white-space: normal;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        </style>
+    </head>
+    <body class="bg-gray-100 text-gray-800 font-sans antialiased">
+        <div class="container mx-auto p-4 max-w-7xl">
+            <h1 class="text-3xl font-bold text-center text-gray-700 mb-6">Virtual Memory Management Simulator</h1>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Control Panel -->
+                <div class="lg:col-span-1 bg-white p-5 rounded-lg shadow-md max-h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Simulation Controls</h2>
+                    <!-- Tutorial Section -->
+                    <div class="tutorial-container mb-5">
+                        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-md mb-3"
+                             id="tutorial-welcome">
+                            <h4 class="font-semibold text-blue-800">Welcome!</h4>
+                            <p class="text-sm text-blue-700 mt-1">Learn about virtual memory step-by-step.</p>
+                            <button id="start-tutorial"
+                                    class="mt-2 text-sm bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded transition duration-150">
+                                Start Tutorial
+                            </button>
+                        </div>
+                        <div id="tutorial-steps"
+                             class="hidden border border-gray-200 rounded-md p-3 bg-gray-50">
+                            <!-- Tutorial steps will be dynamically added here -->
+                        </div>
+                    </div>
+                    <!-- Configuration -->
+                    <div class="space-y-4">
+                        <div>
+                            <label for="memory-size"
+                                   class="block text-sm font-medium text-gray-600 mb-1">
+                                Physical Memory Size (Frames):
+                            </label>
+                            <input type="number"
+                                   id="memory-size"
+                                   min="4"
+                                   max="32"
+                                   value="8"
+                                   class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm">
+                        </div>
+                        <div>
+                            <label for="page-size" class="block text-sm font-medium text-gray-600 mb-1">Page Size (KB):</label>
+                            <select id="page-size"
+                                    class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm">
+                                <option value="1">1 KB</option>
+                                <option value="2">2 KB</option>
+                                <option value="4" selected>4 KB</option>
+                                <option value="8">8 KB</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="algorithm" class="block text-sm font-medium text-gray-600 mb-1">Page Replacement Algorithm:</label>
+                            <select id="algorithm"
+                                    class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm">
+                                <option value="FIFO">FIFO (First-In-First-Out)</option>
+                                <option value="LRU">LRU (Least Recently Used)</option>
+                                <option value="OPT">OPT (Optimal)</option>
+                            </select>
+                            <!-- Algorithm Info Placeholders (content filled by JS) -->
+                            <div id="algorithm-info-FIFO"
+                                 class="algorithm-info hidden mt-2 p-2 bg-purple-50 border-l-4 border-purple-400 text-xs text-purple-700 rounded-r-md">
+                            </div>
+                            <div id="algorithm-info-LRU"
+                                 class="algorithm-info hidden mt-2 p-2 bg-purple-50 border-l-4 border-purple-400 text-xs text-purple-700 rounded-r-md">
+                            </div>
+                            <div id="algorithm-info-OPT"
+                                 class="algorithm-info hidden mt-2 p-2 bg-purple-50 border-l-4 border-purple-400 text-xs text-purple-700 rounded-r-md">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="reference-type"
+                                   class="block text-sm font-medium text-gray-600 mb-1">Reference String:</label>
+                            <select id="reference-type"
+                                    class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm">
+                                <option value="random">Generate Random</option>
+                                <option value="manual">Enter Manually</option>
+                            </select>
+                        </div>
+                        <div id="random-ref-group">
+                            <label for="ref-length" class="block text-sm font-medium text-gray-600 mb-1">Number of References:</label>
+                            <input type="number"
+                                   id="ref-length"
+                                   min="5"
+                                   max="50"
+                                   value="20"
+                                   class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm">
+                        </div>
+                        <div id="manual-ref-group" class="hidden">
+                            <label for="manual-ref" class="block text-sm font-medium text-gray-600 mb-1">
+                                Enter Reference String (comma separated):
+                            </label>
+                            <input type="text"
+                                   id="manual-ref"
+                                   placeholder="1, 2, 3, 4, 1, 2, 5..."
+                                   class="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm">
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button id="generate-btn"
+                                    class="flex-grow bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-md text-sm font-medium transition duration-150">
+                                Generate String
+                            </button>
+                            <button id="reset-btn"
+                                    class="flex-grow bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-md text-sm font-medium transition duration-150">
+                                Reset Sim
+                            </button>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Generated Reference String:</label>
+                            <div class="reference-string flex flex-wrap gap-1 p-2 border border-gray-200 rounded-md min-h-[40px] bg-gray-50"
+                                 id="reference-string-display">
+                                <!-- Reference pages will appear here -->
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">Simulation Control:</label>
+                            <div class="flex flex-wrap gap-2 mb-2">
+                                <button id="start-btn"
+                                        class="flex-grow bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md text-sm font-medium transition duration-150">
+                                    Start
+                                </button>
+                                <button id="step-btn"
+                                        class="flex-grow bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md text-sm font-medium transition duration-150">
+                                    Step
+                                </button>
+                                <button id="pause-btn"
+                                        class="flex-grow bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded-md text-sm font-medium transition duration-150 hidden">
+                                    Pause
+                                </button>
+                            </div>
+                            <div class="flex gap-1">
+                                <button class="speed-btn flex-1 bg-gray-200 hover:bg-blue-500 hover:text-white py-1 px-2 rounded-md text-xs transition duration-150"
+                                        data-speed="2000">Slow</button>
+                                <button class="speed-btn flex-1 bg-gray-200 hover:bg-blue-500 hover:text-white py-1 px-2 rounded-md text-xs transition duration-150"
+                                        data-speed="1000">Medium</button>
+                                <button class="speed-btn flex-1 bg-gray-200 hover:bg-blue-500 hover:text-white py-1 px-2 rounded-md text-xs transition duration-150"
+                                        data-speed="500">Fast</button>
+                            </div>
+                        </div>
+                        <!-- Stats -->
+                        <div class="grid grid-cols-2 gap-3 mt-4">
+                            <div class="bg-white p-3 border border-gray-200 rounded-md shadow-sm text-center">
+                                <label class="block text-xs font-medium text-gray-500 mb-1">
+                                    Page Faults <span class="tooltip">(?)<span class="tooltiptext">Occurs when a requested page is not in memory and must be loaded from disk.</span></span>
+                                </label>
+                                <div id="page-faults" class="text-2xl font-bold text-red-600">0</div>
+                            </div>
+                            <div class="bg-white p-3 border border-gray-200 rounded-md shadow-sm text-center">
+                                <label class="block text-xs font-medium text-gray-500 mb-1">
+                                    Hit Ratio <span class="tooltip">(?)<span class="tooltiptext">Percentage of memory accesses that found the page already in memory. Higher is better.</span></span>
+                                </label>
+                                <div id="hit-ratio" class="text-2xl font-bold text-green-600">0%</div>
+                            </div>
+                        </div>
+                        <!-- Status Message -->
+                        <div class="mt-4 p-3 bg-indigo-50 border-l-4 border-indigo-400 rounded-r-md">
+                            <h4 class="text-sm font-semibold text-indigo-800">Status</h4>
+                            <div id="status-message" class="text-xs text-indigo-700 mt-1">Ready to start simulation.</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Simulation Area -->
+                <div class="lg:col-span-2 bg-white p-5 rounded-lg shadow-md max-h-[calc(100vh-120px)] flex flex-col">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Memory Visualization</h2>
+                    <!-- Tabs -->
+                    <div class="border-b border-gray-200">
+                        <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                            <button class="tab-button active py-3 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600"
+                                    data-tab="memory">Memory</button>
+                            <button class="tab-button py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                    data-tab="page-table">Page Table</button>
+                            <button class="tab-button py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                    data-tab="stats">Statistics</button>
+                            <button class="tab-button py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                    data-tab="help">Help</button>
+                        </nav>
+                    </div>
+                    <!-- Tab Content -->
+                    <div class="flex-grow mt-4 overflow-hidden min-h-0">
+                        <div id="memory-tab"
+                             class="tab-content active h-full overflow-y-auto custom-scrollbar pr-2">
+                            <h3 class="text-lg font-semibold text-gray-600 mb-3">Physical Memory Frames</h3>
+                            <!-- Legend -->
+                            <div class="legend flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-gray-600">
+                                <div class="legend-item flex items-center">
+                                    <span class="legend-color w-3 h-3 mr-1.5 rounded-sm bg-gray-200 border border-gray-300"></span> Free
+                                </div>
+                                <div class="legend-item flex items-center">
+                                    <span class="legend-color w-3 h-3 mr-1.5 rounded-sm bg-blue-500 border border-blue-600"></span> Used
+                                </div>
+                                <div class="legend-item flex items-center">
+                                    <span class="legend-color w-3 h-3 mr-1.5 rounded-sm bg-red-500 border border-red-600 animate-pulse-red"></span> Page Fault (Loading)
+                                </div>
+                                <div class="legend-item flex items-center">
+                                    <span class="font-mono text-blue-700">[R M]</span> Referenced/Modified Bits
+                                </div>
+                            </div>
+                            <div class="memory-grid grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3 mb-4"
+                                 id="memory-grid">
+                                <!-- Memory frames will appear here -->
+                            </div>
+                            <div id="current-reference"
+                                 class="p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-md mb-4 hidden">
+                                <!-- Current reference info -->
+                            </div>
+                            <div id="algorithm-vis"
+                                 class="p-3 bg-purple-50 border-l-4 border-purple-400 rounded-r-md">
+                                <!-- Algorithm specific visualization -->
+                            </div>
+                        </div>
+                        <div id="page-table-tab"
+                             class="tab-content hidden h-full overflow-y-auto custom-scrollbar pr-2">
+                            <h3 class="text-lg font-semibold text-gray-600 mb-3">Page Table</h3>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200 border border-gray-200">
+                                    <thead class="bg-gray-100 sticky top-0">
+                                        <tr>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Page #</th>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Frame #</th>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Present</th>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referenced</th>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modified</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="page-table-body"
+                                           class="bg-white divide-y divide-gray-200 text-sm">
+                                        <!-- Page table entries will appear here -->
+                                        <tr>
+                                            <td colspan="5" class="text-center p-4 text-gray-500">
+                                                Generate a reference string and run simulation to see page table.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div id="stats-tab"
+                             class="tab-content hidden h-full overflow-y-auto custom-scrollbar pr-2 flex flex-col items-center justify-center">
+                            <h3 class="text-lg font-semibold text-gray-600 mb-3">Performance Statistics</h3>
+                            <div class="w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-xs xl:max-w-sm">
+                                <canvas id="stats-chart"></canvas>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-4">Shows the ratio of page hits to page faults.</p>
+                        </div>
+                        <div id="help-tab"
+                             class="tab-content hidden h-full overflow-y-auto custom-scrollbar pr-2 space-y-4 text-sm">
+                            <h3 class="text-lg font-semibold text-gray-600 mb-3">Virtual Memory Help Guide</h3>
+                            <div class="p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r-md">
+                                <h4 class="font-semibold text-blue-800 mb-1">Key Concepts</h4>
+                                <p>
+                                    <strong>Virtual Memory:</strong> A technique giving the illusion of vast memory by using disk space as an extension of RAM.
+                                </p>
+                                <p>
+                                    <strong>Paging:</strong> Dividing virtual memory into fixed-size 'pages' and physical memory into 'frames'.
+                                </p>
+                                <p>
+                                    <strong>Page Fault:</strong> An interrupt when a program accesses a page not in physical memory. The OS must load it from disk.
+                                </p>
+                                <p>
+                                    <strong>Demand Paging:</strong> Loading pages into memory only when they are needed (demanded).
+                                </p>
+                                <p>
+                                    <strong>Page Replacement Algorithm:</strong> Decides which page in memory to swap out when a new page needs to be loaded and memory is full.
+                                </p>
+                            </div>
+                            <div class="p-3 bg-green-50 border-l-4 border-green-400 rounded-r-md">
+                                <h4 class="font-semibold text-green-800 mb-1">How to Use This Simulator</h4>
+                                <ol class="list-decimal list-inside space-y-1">
+                                    <li>
+                                        Set the <strong>Physical Memory Size</strong> (number of available frames).
+                                    </li>
+                                    <li>
+                                        Choose a <strong>Page Replacement Algorithm</strong> (FIFO, LRU, Optimal).
+                                    </li>
+                                    <li>
+                                        Generate a <strong>Reference String</strong> randomly or enter one manually (comma-separated numbers).
+                                    </li>
+                                    <li>
+                                        Click <strong>Generate String</strong> to prepare the sequence of page accesses.
+                                    </li>
+                                    <li>
+                                        Click <strong>Start</strong> to run the simulation automatically, or <strong>Step</strong> to process one page access at a time. Use <strong>Pause</strong> to halt automatic execution.
+                                    </li>
+                                    <li>
+                                        Observe the <strong>Memory Frames</strong>: See pages loaded (blue), free frames (gray), and page faults (red pulse).
+                                    </li>
+                                    <li>
+                                        Check the <strong>Page Table</strong> tab to see mapping and status bits (Present, Referenced, Modified).
+                                    </li>
+                                    <li>
+                                        Analyze the <strong>Statistics</strong> (Page Faults, Hit Ratio) and compare algorithm performance in the Stats tab.
+                                    </li>
+                                </ol>
+                            </div>
+                            <div class="p-3 bg-purple-50 border-l-4 border-purple-400 rounded-r-md">
+                                <h4 class="font-semibold text-purple-800 mb-1">Algorithm Comparison</h4>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200 border border-gray-200 text-xs">
+                                        <thead class="bg-gray-100">
+                                            <tr>
+                                                <th class="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Algorithm</th>
+                                                <th class="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                                <th class="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Pros</th>
+                                                <th class="px-2 py-1 text-left font-medium text-gray-500 uppercase tracking-wider">Cons</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white divide-y divide-gray-200">
+                                            <tr>
+                                                <td class="px-2 py-1 font-semibold">FIFO</td>
+                                                <td class="px-2 py-1">Replaces the page that has been in memory the longest.</td>
+                                                <td class="px-2 py-1">Simple to implement.</td>
+                                                <td class="px-2 py-1">Often performs poorly; suffers from Belady's Anomaly.</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="px-2 py-1 font-semibold">LRU</td>
+                                                <td class="px-2 py-1">Replaces the page that has not been used for the longest time.</td>
+                                                <td class="px-2 py-1">Good performance, often close to optimal.</td>
+                                                <td class="px-2 py-1">Can be expensive to implement perfectly (needs hardware support or complex data structures).</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="px-2 py-1 font-semibold">OPT</td>
+                                                <td class="px-2 py-1">Replaces the page that will not be used for the longest time in the future.</td>
+                                                <td class="px-2 py-1">Guaranteed lowest possible page fault rate (theoretical benchmark).</td>
+                                                <td class="px-2 py-1">Impossible to implement in practice (requires future knowledge).</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Instructions Section -->
+            <div class="mt-8 bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Instructions & Understanding the Simulator</h2>
+                <div class="space-y-4 text-gray-600">
+                    <section>
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">1. Configuration Panel (Left)</h3>
+                        <ul class="list-disc list-inside space-y-1 ml-4 text-sm">
+                            <li>
+                                <strong>Memory Size:</strong> Set the total number of available frames in physical memory. Fewer frames often lead to more page faults.
+                            </li>
+                            <li>
+                                <strong>Page Size:</strong> Select the size of each page/frame (conceptual in this simulator, doesn't directly change frame count).
+                            </li>
+                            <li>
+                                <strong>Algorithm:</strong> Choose the page replacement strategy (FIFO, LRU, Optimal) to see how it affects performance when memory is full.
+                            </li>
+                            <li>
+                                <strong>Reference String:</strong>
+                                <ul>
+                                    <li>
+                                        <em>Generate Random:</em> Specify the length and click "Generate String".
+                                    </li>
+                                    <li>
+                                        <em>Enter Manually:</em> Input a sequence of page numbers (e.g., 1, 2, 3, 1, 4) and click "Generate String".
+                                    </li>
+                                </ul>
+                            </li>
+                            <li>
+                                <strong>Controls:</strong> Use "Start" for automatic simulation, "Step" for manual advance, "Pause" to stop automatic run, and "Reset" to clear everything. Adjust speed with Slow/Medium/Fast buttons.
+                            </li>
+                            <li>
+                                <strong>Stats:</strong> Track Page Faults (lower is better) and Hit Ratio (higher is better).
+                            </li>
+                            <li>
+                                <strong>Status:</strong> Shows messages about the current simulation state (e.g., page hit, page fault).
+                            </li>
+                            <li>
+                                <strong>Tutorial:</strong> Click "Start Tutorial" for a guided walkthrough of the concepts and controls.
+                            </li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">2. Visualization Area (Right)</h3>
+                        <ul class="list-disc list-inside space-y-1 ml-4 text-sm">
+                            <li>
+                                <strong>Memory Tab:</strong>
+                                <ul>
+                                    <li>Shows physical memory frames. Gray = Free, Blue = Used, Red (pulsing) = Page Fault (loading).</li>
+                                    <li>Each used frame shows the Page Number and [R M] bits (Referenced, Modified - simulated).</li>
+                                    <li>"Current Reference" highlights the page being accessed and whether it's a hit or fault.</li>
+                                    <li>
+                                        "Algorithm Visualization" shows internal data structures for the selected algorithm (like FIFO queue or LRU stack).
+                                    </li>
+                                </ul>
+                            </li>
+                            <li>
+                                <strong>Page Table Tab:</strong> Displays the mapping between virtual pages and physical frames. Shows if a page is 'Present' in memory, its 'Frame #', and its 'Referenced'/'Modified' status bits.
+                            </li>
+                            <li>
+                                <strong>Statistics Tab:</strong> Visualizes the Hit vs. Fault ratio with a doughnut chart for the current simulation run.
+                            </li>
+                            <li>
+                                <strong>Help Tab:</strong> Provides definitions of key terms, usage instructions, and a comparison of the implemented algorithms.
+                            </li>
+                        </ul>
+                    </section>
+                    <section>
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2">3. Understanding the Concepts</h3>
+                        <ul class="list-disc list-inside space-y-1 ml-4 text-sm">
+                            <li>
+                                <strong>Goal:</strong> Minimize page faults. When a page fault occurs, the OS must read from the slower disk, significantly impacting performance.
+                            </li>
+                            <li>
+                                <strong>Demand Paging:</strong> Pages are only loaded when needed ("demanded") by the reference string, not all at once.
+                            </li>
+                            <li>
+                                <strong>Replacement:</strong> When memory is full and a fault occurs, the chosen algorithm selects a "victim" page to remove (evict) to make space for the new page. Different algorithms make different choices, leading to varying performance.
+                            </li>
+                            <li>
+                                <strong>Experiment:</strong> Try different memory sizes, reference strings, and algorithms to see how they affect the page fault rate and hit ratio. Observe which algorithms perform better under different conditions. For example, LRU usually outperforms FIFO. OPT provides a theoretical lower bound on page faults.
+                            </li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+        </div>
+        <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Simulation state
+            let state = {
+                physicalMemory: [],
+                pageTable: {},
+                referenceString: [],
+                currentIndex: 0,
+                pageFaults: 0,
+                hits: 0,
+                algorithm: 'FIFO',
+                memorySize: 8,
+                fifoQueue: [],
+                lruStack: [],
+                intervalId: null,
+                speed: 1000, // Default speed (medium)
+                isPaused: false,
+                tutorialStep: 0,
+                chartInstance: null
+            };
+
+            // DOM elements
+            const elements = {
+                memorySize: document.getElementById('memory-size'),
+                pageSize: document.getElementById('page-size'),
+                algorithm: document.getElementById('algorithm'),
+                referenceType: document.getElementById('reference-type'),
+                refLength: document.getElementById('ref-length'),
+                manualRef: document.getElementById('manual-ref'),
+                randomRefGroup: document.getElementById('random-ref-group'),
+                manualRefGroup: document.getElementById('manual-ref-group'),
+                generateBtn: document.getElementById('generate-btn'),
+                resetBtn: document.getElementById('reset-btn'),
+                startBtn: document.getElementById('start-btn'),
+                stepBtn: document.getElementById('step-btn'),
+                pauseBtn: document.getElementById('pause-btn'),
+                referenceStringDisplay: document.getElementById('reference-string-display'),
+                memoryGrid: document.getElementById('memory-grid'),
+                currentReference: document.getElementById('current-reference'),
+                algorithmVis: document.getElementById('algorithm-vis'),
+                pageTableBody: document.getElementById('page-table-body'),
+                pageFaults: document.getElementById('page-faults'),
+                hitRatio: document.getElementById('hit-ratio'),
+                statsChartCtx: document.getElementById('stats-chart')?.getContext('2d'), // Use optional chaining
+                statusMessage: document.getElementById('status-message'),
+                startTutorial: document.getElementById('start-tutorial'),
+                tutorialStepsContainer: document.getElementById('tutorial-steps'),
+                tutorialWelcome: document.getElementById('tutorial-welcome'),
+                tabButtons: document.querySelectorAll('.tab-button'),
+                tabContents: document.querySelectorAll('.tab-content'),
+                speedBtns: document.querySelectorAll('.speed-btn'),
+                algoInfoBoxes: document.querySelectorAll('.algorithm-info')
+            };
+
+            const tutorialContent = [
+                { title: "Step 1: Virtual Memory Basics", content: "Virtual memory lets programs use more memory than physically available by using disk space. Physical memory is split into fixed-size 'frames'." },
+                { title: "Step 2: Configure Memory", content: "Use the 'Physical Memory Size' input to set the number of available frames. Fewer frames usually mean more page faults." },
+                { title: "Step 3: Choose Algorithm", content: "Select a 'Page Replacement Algorithm' (FIFO, LRU, OPT). This decides which page to remove when memory is full and a new page is needed." },
+                { title: "Step 4: Reference String", content: "This is the sequence of pages the program accesses. Generate a random one or enter your own (e.g., 1,2,3,1,4). Click 'Generate String'." },
+                { title: "Step 5: Run Simulation", content: "Click 'Start' for automatic run, 'Step' for one access at a time. Use speed buttons. Watch the 'Memory Frames' visualization." },
+                { title: "Step 6: Analyze Results", content: "Observe 'Page Faults' and 'Hit Ratio'. Check the 'Page Table' and 'Statistics' tabs. Compare how different algorithms perform. Reset to try new settings." }
+            ];
+
+            // --- Initialization ---
+            function init() {
+                setupEventListeners();
+                state.memorySize = parseInt(elements.memorySize.value);
+                state.algorithm = elements.algorithm.value;
+                generateReferenceString(); // Generate initial string
+                updateAlgorithmInfo();
+                highlightSpeedButton(state.speed);
+                updateStatus("Configure settings and click 'Generate String' or 'Start/Step'.");
+            }
+
+            // --- Event Listeners Setup ---
+            function setupEventListeners() {
+                elements.memorySize.addEventListener('change', () => {
+                    state.memorySize = parseInt(elements.memorySize.value);
+                    resetSimulation(); // Reset if size changes
+                    updateStatus("Memory size changed. Resetting simulation.");
+                });
+                elements.algorithm.addEventListener('change', () => {
+                    state.algorithm = elements.algorithm.value;
+                    updateAlgorithmInfo();
+                    // No reset needed, algorithm applies during run
+                    updateStatus(`Algorithm changed to ${state.algorithm}.`);
+                     resetSimulation(); // Optional: Reset on algorithm change for cleaner comparison start
+                });
+                elements.referenceType.addEventListener('change', toggleReferenceInput);
+                elements.generateBtn.addEventListener('click', generateReferenceString);
+                elements.resetBtn.addEventListener('click', resetSimulation);
+                elements.startBtn.addEventListener('click', startSimulation);
+                elements.stepBtn.addEventListener('click', stepSimulation);
+                elements.pauseBtn.addEventListener('click', pauseSimulation);
+
+                elements.tabButtons.forEach(button => {
+                    button.addEventListener('click', () => switchTab(button.getAttribute('data-tab')));
+                });
+
+                elements.speedBtns.forEach(button => {
+                    button.addEventListener('click', function () {
+                        state.speed = parseInt(this.getAttribute('data-speed'));
+                        highlightSpeedButton(state.speed);
+                        if (state.intervalId) { // If running, restart interval with new speed
+                            clearInterval(state.intervalId);
+                            state.intervalId = setInterval(runStep, state.speed);
+                        }
+                        updateStatus(`Speed set to ${state.speed}ms.`);
+                    });
+                });
+
+                elements.startTutorial.addEventListener('click', startTutorial);
+            }
+
+            // --- Tutorial Logic ---
+            function startTutorial() {
+                elements.tutorialWelcome.classList.add('hidden');
+                elements.tutorialStepsContainer.classList.remove('hidden');
+                state.tutorialStep = 1;
+                renderTutorialStep();
+            }
+
+            function renderTutorialStep() {
+                if (state.tutorialStep < 1 || state.tutorialStep > tutorialContent.length) return;
+
+                const stepData = tutorialContent[state.tutorialStep - 1];
+                elements.tutorialStepsContainer.innerHTML = `
+                    <h4 class="font-semibold text-sm text-gray-700 mb-1">${stepData.title}</h4>
+                    <p class="text-xs text-gray-600 mb-2">${stepData.content}</p>
+                    <div class="flex justify-between items-center">
+                        <button class="tutorial-prev text-xs bg-gray-300 hover:bg-gray-400 text-gray-800 py-1 px-2 rounded disabled:opacity-50 disabled:cursor-not-allowed" ${state.tutorialStep === 1 ? 'disabled' : ''}>Previous</button>
+                        <span class="text-xs text-gray-500">${state.tutorialStep} of ${tutorialContent.length}</span>
+                        <button class="tutorial-next text-xs bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 rounded disabled:opacity-50 disabled:cursor-not-allowed" ${state.tutorialStep === tutorialContent.length ? 'disabled' : ''}>Next</button>
+                    </div>
+                `;
+
+                elements.tutorialStepsContainer.querySelector('.tutorial-prev').addEventListener('click', prevTutorialStep);
+                elements.tutorialStepsContainer.querySelector('.tutorial-next').addEventListener('click', nextTutorialStep);
+            }
+
+             function nextTutorialStep() {
+                if (state.tutorialStep < tutorialContent.length) {
+                    state.tutorialStep++;
+                    renderTutorialStep();
+                }
+             }
+
+            function prevTutorialStep() {
+                 if (state.tutorialStep > 1) {
+                    state.tutorialStep--;
+                    renderTutorialStep();
+                }
+            }
+
+             function endTutorial() {
+                 elements.tutorialStepsContainer.classList.add('hidden');
+                 elements.tutorialStepsContainer.innerHTML = ''; // Clear content
+                 elements.tutorialWelcome.classList.remove('hidden');
+                 state.tutorialStep = 0;
+             }
+
+
+            // --- UI Update Functions ---
+            function updateStatus(message) {
+                elements.statusMessage.textContent = message;
+            }
+
+            function switchTab(tabId) {
+                elements.tabButtons.forEach(button => {
+                    const isTarget = button.getAttribute('data-tab') === tabId;
+                    button.classList.toggle('active', isTarget);
+                    button.classList.toggle('border-blue-500', isTarget);
+                    button.classList.toggle('text-blue-600', isTarget);
+                    button.classList.toggle('border-transparent', !isTarget);
+                    button.classList.toggle('text-gray-500', !isTarget);
+                    button.classList.toggle('hover:text-gray-700', !isTarget);
+                    button.classList.toggle('hover:border-gray-300', !isTarget);
+                });
+                elements.tabContents.forEach(content => {
+                    content.classList.toggle('hidden', content.id !== `${tabId}-tab`);
+                     content.classList.toggle('active', content.id === `${tabId}-tab`);
+                });
+
+                if (tabId === 'stats' && elements.statsChartCtx) {
+                    renderStatsChart();
+                }
+            }
+
+            function toggleReferenceInput() {
+                const isRandom = elements.referenceType.value === 'random';
+                elements.randomRefGroup.classList.toggle('hidden', !isRandom);
+                elements.manualRefGroup.classList.toggle('hidden', isRandom);
+            }
+
+            function highlightSpeedButton(speed) {
+                 elements.speedBtns.forEach(btn => {
+                     const btnSpeed = parseInt(btn.getAttribute('data-speed'));
+                     btn.classList.toggle('bg-blue-500', btnSpeed === speed);
+                     btn.classList.toggle('text-white', btnSpeed === speed);
+                     btn.classList.toggle('bg-gray-200', btnSpeed !== speed);
+                     btn.classList.toggle('text-gray-700', btnSpeed !== speed); // Assuming default text color
+                 });
+            }
+
+             function updateAlgorithmInfo() {
+                 const selectedAlgo = state.algorithm;
+                 elements.algoInfoBoxes.forEach(box => {
+                    box.classList.add('hidden');
+                 });
+                 const infoBox = document.getElementById(`algorithm-info-${selectedAlgo}`);
+                 if (infoBox) {
+                    let infoText = '';
+                     switch(selectedAlgo) {
+                        case 'FIFO': infoText = 'Replaces the oldest page.'; break;
+                        case 'LRU': infoText = 'Replaces the least recently used page.'; break;
+                        case 'OPT': infoText = 'Replaces page not used for longest time in future (theoretical).'; break;
+                     }
+                     infoBox.textContent = infoText;
+                     infoBox.classList.remove('hidden');
+                 }
+            }
+
+
+            // --- Simulation Logic ---
+            function generateReferenceString() {
+                if (elements.referenceType.value === 'random') {
+                    const length = parseInt(elements.refLength.value);
+                    // Generate pages typically within a smaller range for locality simulation
+                    const maxPage = Math.max(10, Math.min(20, Math.floor(length * 0.8)));
+                    state.referenceString = Array.from({ length }, () => Math.floor(Math.random() * maxPage) + 1);
+                } else {
+                    const manualRef = elements.manualRef.value;
+                    state.referenceString = manualRef.split(',')
+                        .map(num => parseInt(num.trim()))
+                        .filter(num => !isNaN(num) && num > 0); // Ensure valid numbers > 0
+                }
+
+                renderReferenceString();
+                resetSimulation(false); // Reset state but keep the new string
+                updateStatus(`Reference string generated (${state.referenceString.length} pages). Ready to start.`);
+            }
+
+            function renderReferenceString() {
+                elements.referenceStringDisplay.innerHTML = '';
+                if (state.referenceString.length === 0) {
+                     elements.referenceStringDisplay.innerHTML = '<span class="text-xs text-gray-400 italic">No reference string generated.</span>';
+                     return;
+                }
+                state.referenceString.forEach((page, index) => {
+                    const pageElement = document.createElement('div');
+                    // Tailwind classes for styling the reference page number
+                    pageElement.className = 'reference-page text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded cursor-pointer transition-all duration-200 ease-in-out';
+                    pageElement.textContent = page;
+                    pageElement.title = `Access Page ${page} (Step ${index + 1})`;
+                    pageElement.addEventListener('click', () => {
+                        if (!state.intervalId && state.currentIndex <= index) { // Allow jumping forward when paused/stopped
+                            // Directly step simulation to this point (simplistic jump)
+                             // For accurate state, it's better to just step normally.
+                             // This click could just highlight, or trigger 'step' if paused.
+                             // Let's keep it simple: just step if paused.
+                             if(state.isPaused || !state.intervalId) {
+                                 // This might be complex to implement correctly without full re-simulation
+                                 // For now, let's disable direct jumping via click
+                                 // state.currentIndex = index;
+                                 // stepSimulation();
+                                 updateStatus("Click 'Step' or 'Start' to proceed.");
+                             }
+                        }
+                    });
+                    elements.referenceStringDisplay.appendChild(pageElement);
+                });
+            }
+
+             function resetSimulation(clearReference = true) {
+                clearInterval(state.intervalId);
+                state.intervalId = null;
+                state.isPaused = false;
+
+                state.physicalMemory = Array(state.memorySize).fill(null);
+                state.pageTable = {};
+                state.currentIndex = 0;
+                state.pageFaults = 0;
+                state.hits = 0;
+                state.fifoQueue = [];
+                state.lruStack = [];
+
+                if (clearReference) {
+                    state.referenceString = [];
+                    renderReferenceString();
+                }
+
+                // Reset UI states
+                elements.startBtn.textContent = 'Start';
+                elements.startBtn.disabled = state.referenceString.length === 0;
+                elements.stepBtn.disabled = state.referenceString.length === 0;
+                elements.pauseBtn.classList.add('hidden');
+                elements.startBtn.classList.remove('hidden');
+                elements.stepBtn.classList.remove('hidden');
+                elements.currentReference.classList.add('hidden');
+                 document.querySelectorAll('.reference-page').forEach(el => el.classList.remove('bg-red-500', 'text-white', 'scale-110', 'shadow-md'));
+
+
+                renderMemoryGrid();
+                renderPageTable();
+                updateStats();
+                updateAlgorithmVisualization();
+                if(elements.statsChartCtx) renderStatsChart(); // Update chart on reset
+
+                updateStatus("Simulation reset. Generate a new string or start again.");
+             }
+
+            function startSimulation() {
+                 if (state.intervalId || state.referenceString.length === 0 || state.currentIndex >= state.referenceString.length) {
+                     if(state.currentIndex >= state.referenceString.length) {
+                         resetSimulation(false); // Reset state if finished, keep string
+                         updateStatus("Simulation finished. Resetting state to run again.");
+                     } else {
+                        return; // Already running or nothing to run
+                     }
+                 }
+
+                state.isPaused = false;
+                elements.startBtn.classList.add('hidden');
+                elements.stepBtn.classList.add('hidden');
+                elements.pauseBtn.classList.remove('hidden');
+                elements.pauseBtn.disabled = false;
+                elements.startBtn.disabled = true;
+                elements.stepBtn.disabled = true;
+
+                updateStatus("Simulation running...");
+                elements.currentReference.classList.remove('hidden');
+
+                // Initial step before interval starts
+                if (state.currentIndex < state.referenceString.length) {
+                   runStep();
+                }
+
+                 // Check again if finished after the first step
+                if (state.currentIndex < state.referenceString.length) {
+                   state.intervalId = setInterval(runStep, state.speed);
+                } else {
+                   pauseSimulation(true); // Mark as finished
+                   updateStatus("Simulation complete!");
+                }
+            }
+
+             function pauseSimulation(finished = false) {
+                clearInterval(state.intervalId);
+                state.intervalId = null;
+                state.isPaused = !finished;
+
+                elements.pauseBtn.classList.add('hidden');
+                elements.startBtn.classList.remove('hidden');
+                elements.stepBtn.classList.remove('hidden');
+                elements.startBtn.disabled = finished;
+                elements.stepBtn.disabled = finished;
+
+                if (finished) {
+                    elements.startBtn.textContent = 'Restart';
+                     updateStatus("Simulation complete! Press Reset or Generate new string.");
+                } else {
+                    elements.startBtn.textContent = 'Continue';
+                    updateStatus("Simulation paused.");
+                }
+             }
+
+            function stepSimulation() {
+                if (state.currentIndex >= state.referenceString.length || state.intervalId) {
+                     if (state.currentIndex >= state.referenceString.length) {
+                         updateStatus("Simulation finished. Reset to run again.");
+                         pauseSimulation(true);
+                     }
+                    return; // Don't step manually if auto-running or finished
+                }
+                 elements.currentReference.classList.remove('hidden');
+                 runStep();
+                 // Check if finished after the step
+                 if (state.currentIndex >= state.referenceString.length) {
+                     pauseSimulation(true); // Mark as finished
+                     updateStatus("Simulation complete!");
+                 } else {
+                    updateStatus(`Processed page ${state.referenceString[state.currentIndex-1]}. Ready for next step.`);
+                 }
+            }
+
+            // Renamed internal step function
+            function runStep() {
+                if (state.currentIndex >= state.referenceString.length) {
+                    pauseSimulation(true); // Mark as finished
+                    return;
+                }
+
+                const page = state.referenceString[state.currentIndex];
+                const pageInMemory = state.pageTable[page]?.present; // Optional chaining
+
+                // Highlight current reference in the string display
+                 document.querySelectorAll('.reference-page').forEach((el, idx) => {
+                     const isCurrent = idx === state.currentIndex;
+                     el.classList.toggle('bg-red-500', isCurrent); // Current page highlight
+                     el.classList.toggle('text-white', isCurrent);
+                     el.classList.toggle('scale-110', isCurrent);
+                     el.classList.toggle('shadow-md', isCurrent);
+                     // Reset previous styles if not current
+                     if (!isCurrent) {
+                         el.classList.remove('bg-red-500', 'text-white', 'scale-110', 'shadow-md');
+                         // Reapply default styles if needed (Tailwind usually handles this)
+                         el.classList.add('bg-blue-100', 'text-blue-800');
+                     }
+                 });
+
+                 let status = '';
+                if (pageInMemory) {
+                    handlePageHit(page);
+                    state.hits++;
+                    status = `<span class="font-semibold text-green-600">Hit</span> (Page in memory)`;
+                    updateStatus(`Page ${page} found in memory (Hit).`);
+                } else {
+                    handlePageFault(page);
+                    state.pageFaults++;
+                     status = `<span class="font-semibold text-red-600">Page Fault</span> (Loading from disk)`;
+                     updateStatus(`Page Fault for page ${page}. Loading...`);
+                }
+
+                 // Update current reference display
+                 elements.currentReference.innerHTML = `
+                    <h4 class="text-sm font-semibold mb-1">Processing Step ${state.currentIndex + 1} / ${state.referenceString.length}</h4>
+                    <p class="text-xs">Accessing Page: <strong class="text-lg font-bold mx-1">${page}</strong> -> ${status}</p>
+                `;
+
+                updateAlgorithmDataStructures(page, !pageInMemory); // Pass page and isFault flag
+
+                state.currentIndex++;
+
+                renderMemoryGrid(); // Render immediately before potential delay
+                renderPageTable();
+                updateStats();
+                updateAlgorithmVisualization();
+                 if (elements.statsChartCtx && document.getElementById('stats-tab').classList.contains('active')) {
+                    renderStatsChart(); // Update chart if visible
+                }
+
+                 // If simulation finishes automatically
+                 if (state.currentIndex >= state.referenceString.length && state.intervalId) {
+                     pauseSimulation(true);
+                 }
+            }
+
+
+            // --- Core Memory Management Logic ---
+            function handlePageFault(page) {
+                let frameIndex = state.physicalMemory.indexOf(null); // Find free frame
+
+                if (frameIndex === -1) { // No free frame, need replacement
+                    frameIndex = selectFrameToReplace(page);
+                    const evictedPage = state.physicalMemory[frameIndex]?.page; // Page being kicked out
+                    if (evictedPage && state.pageTable[evictedPage]) {
+                        state.pageTable[evictedPage].present = false;
+                        state.pageTable[evictedPage].frame = null; // Clear frame mapping
+                         // Reset R/M bits on eviction? Typically yes for simulation clarity.
+                         state.pageTable[evictedPage].referenced = false;
+                         state.pageTable[evictedPage].modified = false;
+                         updateStatus(`Page ${page} caused fault. Replacing page ${evictedPage} in Frame ${frameIndex} using ${state.algorithm}.`);
+                    } else {
+                         // This case should ideally not happen if memory is full
+                         console.error("Replacement error: Could not identify evicted page.");
+                         updateStatus(`Page ${page} caused fault. Error during replacement in Frame ${frameIndex}.`);
+                    }
+                } else {
+                     updateStatus(`Page ${page} caused fault. Loading into free Frame ${frameIndex}.`);
+                }
+
+
+                // Update page table for the new page
+                 if (!state.pageTable[page]) {
+                     state.pageTable[page] = { frame: null, present: false, referenced: false, modified: false };
+                 }
+                 state.pageTable[page].present = true;
+                 state.pageTable[page].frame = frameIndex;
+                 state.pageTable[page].referenced = true; // Mark as referenced on load
+                 state.pageTable[page].modified = Math.random() < 0.3; // Simulate potential write on load
+
+
+                 // Update physical memory representation
+                 state.physicalMemory[frameIndex] = {
+                    page: page,
+                    isLoading: true // Mark for visual feedback
+                 };
+
+                 // Simulate loading time visually
+                 setTimeout(() => {
+                    if (state.physicalMemory[frameIndex]?.page === page) { // Check if still the same page
+                        state.physicalMemory[frameIndex].isLoading = false;
+                        renderMemoryGrid(); // Re-render to remove loading state
+                    }
+                 }, state.speed * 0.5); // Half the step duration for the visual effect
+            }
+
+            function handlePageHit(page) {
+                state.pageTable[page].referenced = true;
+                // Simulate a chance of modification on hit
+                 if (Math.random() < 0.15) {
+                    state.pageTable[page].modified = true;
+                }
+            }
+
+            function selectFrameToReplace(page) { // page argument needed for OPT
+                switch (state.algorithm) {
+                    case 'FIFO': return fifoReplacement();
+                    case 'LRU': return lruReplacement();
+                    case 'OPT': return optReplacement(page);
+                    default: return 0; // Should not happen
+                }
+            }
+
+            // FIFO: Replace the page that entered first
+            function fifoReplacement() {
+                const oldestPage = state.fifoQueue.shift(); // Remove from front
+                 if (oldestPage === undefined) return 0; // Should not happen if full
+                return state.pageTable[oldestPage]?.frame ?? 0; // Find its frame
+            }
+
+            // LRU: Replace the page used least recently
+            function lruReplacement() {
+                const lruPage = state.lruStack.pop(); // Remove from end (least recent)
+                 if (lruPage === undefined) return 0; // Should not happen if full
+                 return state.pageTable[lruPage]?.frame ?? 0; // Find its frame
+            }
+
+             // OPT: Replace page not used for longest time in the future
+             function optReplacement(currentPage) { // currentPage isn't used directly, but helps context
+                 const pagesInFrames = state.physicalMemory
+                                        .map(frame => frame?.page)
+                                        .filter(p => p !== null); // Get list of pages currently in memory
+
+                 let pageToReplace = -1;
+                 let maxFutureDistance = -1;
+
+                 pagesInFrames.forEach(pInMem => {
+                    let futureDistance = Infinity; // Assume not used again
+                    for (let i = state.currentIndex + 1; i < state.referenceString.length; i++) {
+                         if (state.referenceString[i] === pInMem) {
+                             futureDistance = i - state.currentIndex; // Calculate distance
+                             break; // Found nearest future use
+                         }
+                     }
+
+                     // If this page has the largest distance (or is never used again)
+                     if (futureDistance > maxFutureDistance) {
+                         maxFutureDistance = futureDistance;
+                         pageToReplace = pInMem;
+                     }
+                 });
+
+                 if (pageToReplace === -1) {
+                     // This might happen if all pages in memory are used immediately next, or some error. Fallback to FIFO-like behavior.
+                     pageToReplace = pagesInFrames[0]; // Default to the first one (arbitrary but consistent)
+                 }
+
+                 return state.pageTable[pageToReplace]?.frame ?? 0; // Find frame of the chosen page
+             }
+
+
+            // Update algorithm helper data structures
+             function updateAlgorithmDataStructures(page, isPageFault) {
+                 // FIFO: Add to queue only on fault if not already present (avoids duplicates if already loaded)
+                 if (isPageFault) {
+                    // Check if the page replacing another is already in queue, if so, don't re-add
+                     // Simple FIFO adds on fault when space is made/used.
+                     // Queue holds the order pages entered *memory*.
+                     if(!state.fifoQueue.includes(page)){ // Only add if truly new to memory via fault
+                        state.fifoQueue.push(page);
+                     }
+                     // Ensure queue doesn't exceed memory size (though replacement logic handles this)
+                     while(state.fifoQueue.length > state.memorySize) {
+                        state.fifoQueue.shift(); // Should align with replacement, but as a safeguard
+                     }
+                 }
+
+                 // LRU: Move accessed page to the front (most recent)
+                 // Remove if exists
+                 const indexInLru = state.lruStack.indexOf(page);
+                 if (indexInLru > -1) {
+                     state.lruStack.splice(indexInLru, 1);
+                 }
+                 // Add to front
+                 state.lruStack.unshift(page);
+                  // Ensure stack doesn't exceed memory size (evicted pages are removed by replacement logic)
+                  while(state.lruStack.length > state.memorySize) {
+                        state.lruStack.pop();
+                  }
+             }
+
+            // --- Rendering Functions ---
+            function renderMemoryGrid() {
+                elements.memoryGrid.innerHTML = '';
+                state.physicalMemory.forEach((frame, index) => {
+                    const frameElement = document.createElement('div');
+                    // Base classes using Tailwind
+                    frameElement.className = 'memory-frame h-20 flex flex-col items-center justify-center border rounded-md text-xs relative transition-colors duration-300';
+
+                    // Frame index label
+                    const frameIndexLabel = `<div class="absolute top-1 left-1 text-[10px] text-gray-400">F${index}</div>`;
+                     frameElement.innerHTML = frameIndexLabel;
+
+                    if (frame) {
+                        const pageInfo = state.pageTable[frame.page];
+                        const refBit = pageInfo?.referenced ? 'R' : '-';
+                        const modBit = pageInfo?.modified ? 'M' : '-';
+
+                         if (frame.isLoading) {
+                             // Page fault / loading state
+                             frameElement.classList.add('bg-red-500', 'text-white', 'animate-pulse-red');
+                             frameElement.innerHTML += `<div class="text-center"><span class="font-bold text-sm block">Page ${frame.page}</span>Loading...</div>`;
+                         } else {
+                             // Used state
+                             frameElement.classList.add('bg-blue-500', 'text-white');
+                             frameElement.innerHTML += `
+                                <div class="text-center">
+                                     <span class="font-bold text-sm block">Page ${frame.page}</span>
+                                     <span class="font-mono text-[11px] text-blue-200">[${refBit} ${modBit}]</span>
+                                 </div>`;
+                         }
+                    } else {
+                         // Free state
+                         frameElement.classList.add('bg-gray-200', 'text-gray-600');
+                         frameElement.innerHTML += `<div>Free</div>`;
+                    }
+                    elements.memoryGrid.appendChild(frameElement);
+                });
+
+                 // Add placeholders if memory size > rendered frames (e.g., during initialization)
+                for (let i = state.physicalMemory.length; i < state.memorySize; i++) {
+                     const frameElement = document.createElement('div');
+                     frameElement.className = 'memory-frame h-20 flex flex-col items-center justify-center border rounded-md text-xs relative transition-colors duration-300 bg-gray-200 text-gray-600';
+                     frameElement.innerHTML = `<div class="absolute top-1 left-1 text-[10px] text-gray-400">F${i}</div><div>Free</div>`;
+                     elements.memoryGrid.appendChild(frameElement);
+                 }
+            }
+
+            function renderPageTable() {
+                 elements.pageTableBody.innerHTML = '';
+                 const pages = Object.keys(state.pageTable).map(Number).sort((a, b) => a - b);
+
+                 if (pages.length === 0) {
+                     elements.pageTableBody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500 text-sm">Run simulation to populate page table.</td></tr>';
+                     return;
+                 }
+
+                 pages.forEach(page => {
+                     const entry = state.pageTable[page];
+                     const row = document.createElement('tr');
+                     row.className = entry.present ? 'bg-white hover:bg-gray-50' : 'bg-gray-100 text-gray-500 hover:bg-gray-100'; // Style rows differently if present or not
+
+                     row.innerHTML = `
+                        <td class="px-4 py-2 whitespace-nowrap font-medium ${entry.present ? 'text-gray-900' : ''}">${page}</td>
+                        <td class="px-4 py-2 whitespace-nowrap">${entry.present ? entry.frame : '-'}</td>
+                        <td class="px-4 py-2 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${entry.present ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${entry.present ? 'Yes' : 'No'}</span></td>
+                        <td class="px-4 py-2 whitespace-nowrap">${entry.referenced ? 'Yes' : 'No'}</td>
+                        <td class="px-4 py-2 whitespace-nowrap">${entry.modified ? 'Yes' : 'No'}</td>
+                    `;
+                    elements.pageTableBody.appendChild(row);
+                 });
+             }
+
+             function updateStats() {
+                elements.pageFaults.textContent = state.pageFaults;
+                const totalAccesses = state.hits + state.pageFaults;
+                const hitRatio = totalAccesses > 0 ? Math.round((state.hits / totalAccesses) * 100) : 0;
+                elements.hitRatio.textContent = `${hitRatio}%`;
+            }
+
+            function updateAlgorithmVisualization() {
+                 let content = `<h4 class="text-sm font-semibold mb-1 text-purple-800">${state.algorithm} State</h4>`;
+                 switch (state.algorithm) {
+                     case 'FIFO':
+                         content += `<p class="text-xs text-purple-700">Replacement Queue (Oldest first):<br><span class="font-mono">${state.fifoQueue.join(' → ') || 'Empty'}</span></p>`;
+                         content += `<p class="text-xs text-purple-700 mt-1">Next to replace: <span class="font-bold">${state.fifoQueue[0] || 'N/A'}</span></p>`;
+                         break;
+                     case 'LRU':
+                         content += `<p class="text-xs text-purple-700">Usage Stack (Most recent first):<br><span class="font-mono">${state.lruStack.join(' → ') || 'Empty'}</span></p>`;
+                         content += `<p class="text-xs text-purple-700 mt-1">Next to replace: <span class="font-bold">${state.lruStack[state.lruStack.length - 1] || 'N/A'}</span></p>`;
+                         break;
+                     case 'OPT':
+                         content += `<p class="text-xs text-purple-700">Analyzes future references:<br><span class="font-mono">Finds page used furthest in the future.</span></p>`;
+                          // We can show the next few references for context
+                         const futureRefs = state.referenceString.slice(state.currentIndex, state.currentIndex + 10).join(', ');
+                         content += `<p class="text-xs text-purple-700 mt-1">Upcoming refs: <span class="font-mono">${futureRefs || 'End'}...</span></p>`;
+                         break;
+                 }
+                 elements.algorithmVis.innerHTML = content;
+             }
+
+            function renderStatsChart() {
+                if (!elements.statsChartCtx) return; // Exit if canvas context is not available
+
+                 const totalAccesses = state.pageFaults + state.hits;
+                 const faultCount = state.pageFaults;
+                 const hitCount = state.hits;
+                 // Handle division by zero
+                 const faultPercentage = totalAccesses > 0 ? (faultCount / totalAccesses) * 100 : 0;
+                 const hitPercentage = totalAccesses > 0 ? (hitCount / totalAccesses) * 100 : 0;
+
+                 // Destroy previous chart instance if it exists
+                 if (state.chartInstance) {
+                    state.chartInstance.destroy();
+                 }
+
+                 state.chartInstance = new Chart(elements.statsChartCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: [`Page Faults (${faultCount})`, `Hits (${hitCount})`],
+                        datasets: [{
+                             label: 'Access Outcome',
+                            data: [faultPercentage, hitPercentage], // Use percentages for the chart segments
+                             backgroundColor: [
+                                 '#EF4444', // red-500
+                                 '#22C55E'  // green-500
+                             ],
+                             borderColor: [
+                                 '#FFFFFF',
+                                 '#FFFFFF'
+                             ],
+                             borderWidth: 2
+                        }]
+                    },
+                    options: {
+                         responsive: true,
+                         maintainAspectRatio: true, // Allow chart to adapt
+                         plugins: {
+                             legend: {
+                                 position: 'bottom',
+                                 labels: {
+                                     boxWidth: 12,
+                                     font: { size: 10 }
+                                 }
+                             },
+                             tooltip: {
+                                 callbacks: {
+                                     label: function (context) {
+                                         // Show percentage and raw count in tooltip
+                                         let label = context.label || '';
+                                         if (label) {
+                                             label += ': ';
+                                         }
+                                         const value = context.raw || 0;
+                                         label += `${value.toFixed(1)}%`;
+                                         return label;
+                                     }
+                                 }
+                             },
+                             title: {
+                                display: true,
+                                text: 'Hit vs. Fault Ratio',
+                                font: { size: 14 }
+                             }
+                         },
+                        animation: {
+                            duration: 300 // Faster animation
+                        },
+                        layout: {
+                            padding: 5
+                        }
+                    }
+                });
+            }
+
+            // --- Initial Setup Call ---
+            init();
+        });
+        </script>
+    </body>
+</html>
